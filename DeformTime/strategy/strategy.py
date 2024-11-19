@@ -346,14 +346,14 @@ class NeuralNetworkStrategy(Strategy):
             - Parameter "stocks" will have the sequence of stocks like V_i(s)
         '''
 
-        decision_vector = kwargs["decision"]
+        nn_output = kwargs["decision"]
 
         #returns = context.filter(regex=".*_RET")
-        proportion = torch.abs(decision_vector) / torch.sum(torch.abs(decision_vector)).item()
+        proportion = torch.abs(nn_output) / torch.sum(torch.abs(nn_output)).item()
         # print(f"proportion: {proportion}")
         
-        decision_vector = list(decision_vector.detach().numpy().flatten())
-        print(decision_vector)
+        nn_output = list(nn_output.detach().numpy().flatten())
+        print(nn_output)
         proportion = list(proportion.detach().numpy().flatten())
         print(proportion)
 
@@ -362,7 +362,7 @@ class NeuralNetworkStrategy(Strategy):
         # print(companies)
         investment, pool = 0.0, self.money_pool
         decision, price_type = None, None
-        for st, v, p in zip(companies, decision_vector, proportion):
+        for st, v, p in zip(companies, nn_output, proportion):
             if st is None:
                 if all(p > proportion[:-1]):
                     self.reset()

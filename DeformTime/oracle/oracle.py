@@ -45,7 +45,7 @@ class NeuralPortFolioOracle(Oracle):
         portfolio_values, stock_shares = state.calculate_value(context)
         reward = 0.0
         for decision in portfolio_values.keys():
-            price = '_PRC' if decision == 'short' else '_PRC'
+            price = '_PRC' # if decision == 'short' else '_PRC'
             for stock in portfolio_values[decision].keys():
                 # print(f"[INFO]   {decision}   {stock} price before: {portfolio_values[decision][stock]/stock_shares[stock]} price now: {context[stock + price]}")
                 if decision == 'long':
