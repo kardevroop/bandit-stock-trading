@@ -1,0 +1,16 @@
+checkpoints/
+data/dataset/Cyclone
+data/dataset/electricity
+data/dataset/Cyclone
+data/dataset/exchange
+data/dataset/ILI
+data/dataset/queries
+data/dataset/SP500
+data/dataset/traffic
+data/dataset/turbine
+data/dataset/weather
+results/
+outs/
+logs/
+result.txt
+out*.txt
