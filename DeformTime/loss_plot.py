@@ -45,52 +45,59 @@ def main(args):
     grad_Y = []
 
 
-    i = 6
+    i = 2
 
-    target_next = torch.ones(1, num_stocks)
+    target_next = torch.abs(torch.rand(1, num_stocks))
     target = torch.zeros(1, num_stocks)
 
-    for x in range(itr):
-        O_i = torch.tanh(-5  + torch.rand(1, num_stocks) * 10)
-        O_i = torch.tensor(O_i, requires_grad=True)
-        print(O_i.shape)
+    for _ in range(itr):
+        O_i = torch.tanh(-10  + torch.rand(1, num_stocks) * 20)
+        # O_i = torch.tensor(O_i)
+        # print(O_i.shape)
 
         x = O_i[0,i]
         y = criterion(O_i, target, target_next=target_next)
 
-        y.backward()
-        print(O_i.grad.shape)
+        # y.backward()
+        # print(O_i.grad.shape)
 
-        print(O_i.grad)
+        # print(O_i.grad)
 
-        # x = x.numpy()
-        # X.append(x)
-        # y = y.detach().numpy()
-        # Y.append(y)
+        xp = x.clone().detach().numpy()
+        X.append(xp)
+        yp = y.clone().detach().numpy()
+        Y.append(yp)
 
+        grad = torch.zeros_like(O_i)
+        for j in range(grad.shape[1]):
+            gradient_at_j = gradient_stock_loss(j, O_i, target, target_next, args.loss)
+            grad[0,j] = gradient_at_j
 
-        gradient_at_i = gradient_stock_loss(i, O_i, target, target_next, args.loss)
-        grad_Y.append(gradient_at_i)
+        # print(grad)
+
+        grad_Y.append(grad[0,i])
+        # grad_Y.append(O_i.grad[0,i].numpy())
         
 
         # print(x)
         # print(y)
 
 
-    # plt.scatter(X, Y, color='b', label='Stock Loss')
+    plt.scatter(X, Y, color='b', label='Stock Loss')
     # # plt.savefig('stock_loss.png')
 
-    # plt.scatter(X, grad_Y, color='r', label='Gradient of Stock Loss')
+    plt.scatter(X, grad_Y, color='r', label='Gradient of Stock Loss')
 
-    # plt.xlabel('o_i')
-    # plt.ylabel('Loss')
-    # plt.legend()
-    # plt.savefig('stock_loss_gradient.png')
+    plt.xlabel(f'NN output: o_{i}')
+    plt.ylabel('Loss/Gradient')
+    plt.title('Loss function and gradient Values for Ret_t+1 < Ret_t')
+    plt.legend()
+    plt.savefig('stock_loss_gradient_long.png')
 
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='MTS forecasting')
+    parser = argparse.ArgumentParser(description='Loss Function')
 
     parser.add_argument('--loss', type=str, default='Stock', help='loss function')
     parser.add_argument('--points', type=int, default='500', help='number of random points to generate')
