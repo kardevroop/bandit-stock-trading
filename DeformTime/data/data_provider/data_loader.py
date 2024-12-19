@@ -512,27 +512,48 @@ class Dataset_SP500_all(Dataset):
         # print(f"before: {self.target_next}\n")
         # print(f"after: {self.target}\n")
 
+        # sell_prc = list(df_raw.filter(regex=f".*_SELL_PRC"))
+        # tran = list(df_raw.filter(regex=f".*_TRAN_COST"))
+        # for t in sell_prc:
+        #     cols.remove(t)
+        # for t in tran:
+        #     cols.remove(t)
+
 
         cols.remove('date')
 
-        self.df_raw = df_raw.copy()
         df_raw = df_raw[['date'] + cols + self.target_next + self.target_pred + self.target]
+        self.df_raw = df_raw.copy()
 
         self.stocks = [a.split("_")[0] for a in self.target]
 
         if isinstance(self.target, pd.Series):
             self.target = self.target.to_frame()
 
-        num_train = int(len(df_raw) * 0.8)
-        num_test = int(len(df_raw) * 0.1)
+        df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+        train_df = df_raw[df_raw['date'].dt.year < 2022]
+        val_df = df_raw[df_raw['date'].dt.year == 2022]
+        test_df = df_raw[df_raw['date'].dt.year == 2023]
+
+        # print(len(train_df))
+        # print(len(val_df))
+        # print(len(test_df))
+
+        num_train = len(train_df)
+        num_test = len(test_df)
         num_vali = len(df_raw) - num_train - num_test
+
+        # num_train = int(len(df_raw) * 0.8)
+        # num_test = int(len(df_raw) * 0.1)
+        # num_vali = len(df_raw) - num_train - num_test
 
         border1s = [0, num_train - self.seq_len, len(df_raw) - num_test - self.seq_len]
         border2s = [num_train, num_train + num_vali, len(df_raw)]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
 
-        print(f"border1s: {border1s}")
+        # print(f"border1s: {border1s}")
 
         if self.features == 'M' or self.features == 'MS':
             cols_data = df_raw.columns[1:]
@@ -584,7 +605,7 @@ class Dataset_SP500_all(Dataset):
 
     def __len__(self) -> int:
         # return self.features.shape[0]
-        return len(self.data_x) - self.seq_len - self.pred_len + (1 if self.set_type !=2 else 0)
+        return len(self.data_x) - self.seq_len - self.pred_len + 1 # (1 if self.set_type !=2 else 0)
 
     def __getitem__(self, index) -> any:
 

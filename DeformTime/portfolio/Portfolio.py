@@ -31,4 +31,4 @@ class Portfolio:
             value['short'][stock] = price * purchased_shares
             shares[stock] = purchased_shares
 
-        return value, shares
+        return value, shares, self.calc_context

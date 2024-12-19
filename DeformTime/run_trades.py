@@ -116,7 +116,7 @@ if __name__ == '__main__':
             print(f'Run {ii+1}')
             # setting record of experiments
             exp = Exp(args)  # set experiments
-            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_d{}_ld{}_lr{}_{}_{}'.format(
+            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_d{}_ld{}_lr{}_loss{}_{}_{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -130,6 +130,7 @@ if __name__ == '__main__':
                 args.dropout,
                 args.layer_dropout,
                 args.learning_rate,
+                args.loss,
                 args.des, ii)
 
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))

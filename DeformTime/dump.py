@@ -9,7 +9,7 @@ dest = './processed'
 metrics = []
 parameters = []
 
-for file in glob.glob(os.path.join(src, "sp500", "*.o")):
+for file in glob.glob("tout_*.txt")):
     print(file)
     dataset = file.split("/")[2]
     print(dataset)
