@@ -81,7 +81,7 @@ class Model(nn.Module):
         # changing projection layer to V_i calculation
         self.projection2 = nn.Linear(self.d_model, configs.v_dim)
 
-        self.bias = nn.Parameter(torch.zeros(configs.v_dim))
+        self.bias = nn.Parameter(torch.rand(configs.v_dim))
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # print("xenc: ", x_enc.shape[-1])
@@ -113,7 +113,7 @@ class Model(nn.Module):
         else:
 
             # New Projection
-            out = self.projection2(out)
+            out = self.projection2(out) + bias
             # out += self.bias
             out = torch.tanh(out)
         

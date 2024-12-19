@@ -317,9 +317,14 @@ class Strategy(ABC):
 #         self.bought_price = {'long': {}, 'short': {}}
 
 
-
+'''
+Strategy for trading using continuous bandit approach
+'''
 class NeuralNetworkStrategy(Strategy):
     def __init__(self, args, **kwargs):
+        '''
+        Initialize with starting values and money pool
+        '''
         self.args = args
         self.metric = None, None
 
@@ -365,13 +370,17 @@ class NeuralNetworkStrategy(Strategy):
         companies = kwargs["stocks"]
         companies.append(None)
         print(f"companies for v_caps: {companies}")
-        investment, pool = 0.0, self.money_pool
+
+        investment, pool = self.money_pool, self.money_pool
         decision, price_type = None, None
 
         # if not all(abs(proportion[-1]) > abs(proportion[:-1])):
 
         for st, v, p in zip(companies, nn_output, proportion):
             if st is None:
+                '''
+                If hold is selected clear portfolio values
+                '''
                 if self.args.enable_action and all(abs(p) > abs(a) for a in proportion[:-1]):
                     self.reset()
                     decision = 'hold'
@@ -391,7 +400,7 @@ class NeuralNetworkStrategy(Strategy):
             # print(f"[INFO]              {st} stock price is {stock_price}")
             shares = p * self.money_pool / stock_price
             # print(f"[INFO]              {st} number of shares to trade is {shares}")
-            investment += p * self.money_pool
+            investment -= min(investment, p * self.money_pool)
             # self.money_pool -= p * self.money_pool
             self.stocks[decision][st] = st
             self.purchased_shares[decision][st] = shares
@@ -402,14 +411,20 @@ class NeuralNetworkStrategy(Strategy):
 
         # assert abs(investment - self.money_pool) < 1
             
-        pool -= investment
+        # pool -= investment
         self.context = context
         print(f"[INFO]      Remaining Pool: {pool}")
 
     def report_reward(self, reward):
+        '''
+        Update pool with reward for next day trading
+        '''
         self.money_pool += reward
 
     def get_state(self):
+        '''
+        Return portfolio of stocks
+        '''
         print(f"[INFO]      Starting with {self.money_pool}")
         portfolio = Portfolio(self.money_pool, self.context)
         portfolio.add_stock(self.purchased_shares)

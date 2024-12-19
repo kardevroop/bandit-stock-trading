@@ -339,6 +339,8 @@ class exp_MTS_forecasting(Exp_Basic):
                 dim_len = test_data.target.shape[1] + (1 if self.args.enable_action else 0)
                 f_dim = -1 * dim_len if self.args.features == 'MS' else 0
                 f_dim += (1 if self.args.enable_action else 0)
+
+                # This section is for extracting returns where we have expected and predicted returns
                 batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
                 
                 batch_x1 = torch.dstack((batch_x[:,:,:3*f_dim], batch_x[:,:,f_dim:]))
@@ -416,6 +418,11 @@ class exp_MTS_forecasting(Exp_Basic):
                 # print(f"[INFO    ]       context: {context.tail()}")
                 # print(f"[INFO    ]       context_next: {context_next.tail()}")
 
+                '''
+                Skip the first record and calculate from the next
+                batch_x_prev is the context for the `current` day
+                batch_x is the context for the `next` day
+                '''
                 if self.args.valuation and i > 0:
                     context = pd.DataFrame(batch_x_prev, columns=test_data.cols)
                     context_next = pd.DataFrame(batch_x, columns=test_data.cols)
