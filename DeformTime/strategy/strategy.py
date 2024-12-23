@@ -406,7 +406,7 @@ class NeuralNetworkStrategy(Strategy):
             self.purchased_shares[decision][st] = shares
             self.bought_price[decision][st] = stock_price
 
-            # print(f"[INFO]          For stock {st} go {decision} with {shares} shares | PRC_t: { context[st + price_type]} PRC_t+1: { forecast[st + price_type]}")
+            print(f"[INFO]          For stock {st} go {decision} using v_i_cap: {p*100} with {shares} shares | PRC_t: { context[st + price_type]} PRC_t+1: { forecast[st + price_type]}")
 
 
         # assert abs(investment - self.money_pool) < 1
