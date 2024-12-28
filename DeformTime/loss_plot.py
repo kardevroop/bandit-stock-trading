@@ -2,13 +2,32 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-from src.utils.losses import stock_loss, stock_loss_l2_norm, stock_loss_max_norm, stock_loss_global_norm
+from src.utils.losses import stock_loss, stock_loss_l2_norm, stock_loss_max_norm, stock_loss_global_norm, soft_stock_loss
 import argparse
+import shutil
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def gradient_stock_loss(k, nn_output, target, target_next):
     signs = nn_output / torch.abs(nn_output)
+
+    s = torch.sum(torch.abs(nn_output))
+
+    grad = torch.zeros_like(nn_output)
+
+    grad[0,k] = (s - nn_output[0,k]*signs[0, k]) / s**2
+
+    for j in range(grad.shape[1]):
+        if j == k:
+            continue
+        
+        grad[0,j] = - nn_output[0,j]*signs[0,k] / s**2
+
+    return - torch.sum(torch.flatten(target_next - target) * torch.flatten(grad))
+
+def gradient_soft_stock_loss(k, nn_output, target, target_next, gamma=5):
+
+    signs = torch.tanh(gamma * nn_output)
 
     s = torch.sum(torch.abs(nn_output))
 
@@ -116,6 +135,8 @@ def gradient_loss(k, nn_output, target, target_next, loss_func = "Stock"):
         grad = gradient_stock_loss_max_norm(k, nn_output, target, target_next)
     elif loss_func == 'Stock_global':
         grad = gradient_stock_loss_global_norm(k, nn_output, target, target_next)
+    # elif loss_func == 'Stock_soft':
+    #     grad = gradient_soft_stock_loss(k, nn_output, target, target_next)
 
     return grad
 
@@ -131,13 +152,11 @@ def main(args):
         criterion = stock_loss_max_norm(args.enable_action)
     elif args.loss == 'Stock_global':
         criterion = stock_loss_global_norm(args.enable_action)
-
-    X=[]
-    Y=[]
-    grad_Y = []
+    elif args.loss == 'Stock_soft':
+        criterion = soft_stock_loss(args.enable_action)
 
 
-    i = 0
+    # i = 0
 
     if args.mode == 'long':
         target_next = torch.abs(0.5 * torch.ones(1, num_stocks))
@@ -145,78 +164,92 @@ def main(args):
     else:
         target_next = torch.zeros(1, num_stocks)
         target = torch.abs(0.5 * torch.ones(1, num_stocks))
+
+    # O_i = torch.ones(1, num_stocks+1) if args.enable_action else torch.ones(1, num_stocks)
+
+    O_i_1 = torch.tanh(-5 + 10 * torch.rand(1, num_stocks+1)) if args.enable_action else torch.tanh(-5 + 10 * torch.rand(1, num_stocks))
         
-    for x in np.linspace(-1.0, 1.0, num=args.points):
+    for i in range(num_stocks):
+        print(f"\n\nOutput O_{i+1}")
+        O_i = torch.clone(O_i_1)
 
-        
-        O_i = x * torch.ones(1, num_stocks+1) if args.enable_action else x * torch.ones(1, num_stocks)
+        X=[]
+        Y=[]
+        grad_Y = []
 
-        # O_i = torch.tanh(-5 + 10 * torch.rand(1, num_stocks))
-        # O_i = torch.tensor(O_i)
-        # print(O_i)
+        for x in np.linspace(-1.0, 1.0, num=args.points):
 
-        if args.enable_action:
-            O_i[0, num_stocks] = torch.tanh(-5 + 10 * torch.rand(1)[0])
+            # O_i = x * O_i
+            
+            # O_i = torch.tensor(O_i)
+            # print(O_i)
 
-        O_i[0,i] = x
+            # if args.enable_action:
+            #     O_i[0, num_stocks] = torch.tanh(-5 + 10 * torch.rand(1)[0])
 
-        print(f"\n\nO_i: {O_i}")
+            O_i[0,i] = x
 
-        xx = O_i[0,i]
+            # print(f"O_i: {O_i}")
+
+            xx = O_i[0,i]
 
 
-        if len(target.shape) < 3:
-            target = target.unsqueeze(0)
-            target_next = target_next.unsqueeze(0)
+            if len(target.shape) < 3:
+                target = target.unsqueeze(0)
+                target_next = target_next.unsqueeze(0)
 
-        y = criterion(O_i, target, target_next=target_next)
-        print(f"y: {y}")
+            y = criterion(O_i, target, target_next=target_next)
+            # print(f"y: {y}")
 
-        # y.backward()
-        # print(O_i.grad.shape)
+            # y.backward()
+            # print(O_i.grad.shape)
 
-        # print(O_i.grad)
+            # print(O_i.grad)
 
-        xp = xx.clone().detach().numpy()
-        X.append(xp)
-        yp = y.clone().detach().numpy()
-        Y.append(yp)
+            xp = xx.clone().detach().numpy()
+            X.append(xp)
+            yp = y.clone().detach().numpy()
+            Y.append(yp)
 
-        grad = torch.zeros_like(O_i)
-        for j in range(grad.shape[1]):
-            gradient_at_j = gradient_loss(j, O_i, target, target_next, loss_func=args.loss)
-            grad[0,j] = gradient_at_j
+            grad = torch.zeros_like(O_i)
+            for j in range(grad.shape[1]):
+                gradient_at_j = gradient_loss(j, O_i, target, target_next, loss_func=args.loss)
+                grad[0,j] = gradient_at_j
 
-        # print(grad)
+            # print(grad)
 
-        grad_Y.append(grad[0,i])
-        # grad_Y.append(O_i.grad[0,i].numpy())
-        
+            grad_Y.append(grad[0,i])
+            # grad_Y.append(O_i.grad[0,i].numpy())
+            
 
-        # print(x)
-        # print(y)
+            # print(x)
+            # print(y)
 
-    comp = '>' if args.mode == 'long' else '<'
+        comp = '>' if args.mode == 'long' else '<'
 
-    fig, ax1 = plt.subplots()
+        fig, ax1 = plt.subplots()
 
-    ax1.set_xlabel(f'NN output: o_{i+1}')
-    ax1.set_ylabel('Loss')
-    fig.suptitle(f"{args.loss} Loss function and gradient Values for Ret_t+1 {comp} Ret_t {'with Hold' if args.enable_action else ''}")
+        ax1.set_xlabel(f'NN output: o_{i+1}')
+        ax1.set_ylabel('Loss')
+        fig.suptitle(f"{args.loss} Loss function and gradient Values for Ret_t+1 {comp} Ret_t {'with Hold' if args.enable_action else ''}")
 
-    ax1.scatter(X, Y, color='b', label='Stock Loss')
+        ax1.scatter(X, Y, color='b', label='Stock Loss')
 
-    ax2 = ax1.twinx()
+        ax2 = ax1.twinx()
 
-    ax2.set_ylabel('Gradient')
-    ax2.scatter(X, grad_Y, color='r', label='Gradient of Stock Loss')
+        ax2.set_ylabel('Gradient')
+        ax2.scatter(X, grad_Y, color='r', label='Gradient of Stock Loss')
 
-    fig.tight_layout()
+        fig.tight_layout()
 
-    out_path = os.path.join("plots", "loss", f"{args.loss}")
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-    plt.savefig(os.path.join(out_path, f"{args.loss}_loss_gradient_st{args.stocks}_{args.mode}{'_h' if args.enable_action else ''}.png"))
+        out_path = os.path.join("plots", "loss", f"{args.loss}", f"st{args.stocks}", f"o{i+1}")
+        if not os.path.exists(out_path):
+            # shutil.rmtree(out_path)
+            os.makedirs(out_path)
+    
+
+        plt.savefig(os.path.join(out_path, f"{args.loss}_loss_gradient_st{args.stocks}_{args.mode}{'_h' if args.enable_action else ''}.png"))
+        plt.close()
 
 
 

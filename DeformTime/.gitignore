@@ -18,3 +18,4 @@ tout*.txt
 *.png
 plots/
 image.png
+get_companies.py

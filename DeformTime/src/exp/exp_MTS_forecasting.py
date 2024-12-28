@@ -2,7 +2,7 @@ from data.data_provider.data_factory import data_provider
 from src.exp.exp_basic import Exp_Basic
 from src.utils.tools import EarlyStopping, adjust_learning_rate
 from src.utils.metrics import MAE, MSE, SMAPE
-from src.utils.losses import stock_loss, stock_loss_max_norm, stock_loss_l2_norm, stock_loss_global_norm
+from src.utils.losses import stock_loss, stock_loss_max_norm, stock_loss_l2_norm, stock_loss_global_norm, soft_stock_loss
 from strategy.strategy import Strategy
 from oracle.oracle import Oracle
 import torch
@@ -48,6 +48,8 @@ class exp_MTS_forecasting(Exp_Basic):
             criterion = stock_loss_max_norm(self.args.enable_action)
         elif loss_type == 'Stock_global':
             criterion = stock_loss_global_norm(self.args.enable_action)
+        elif loss_type == 'Stock_soft':
+            criterion = soft_stock_loss(self.args.enable_action)
         else:
             criterion = nn.MSELoss()
         return criterion
@@ -123,7 +125,7 @@ class exp_MTS_forecasting(Exp_Basic):
                 # weights = weights.detach().cpu()
 
                 if criterion is not None:
-                    loss = criterion(outputs.detach().cpu(), true, target_next=true_n)
+                    loss = criterion(outputs.detach().cpu(), true, target_next=true_n, gamma=10)
                     #mae = MAE(pred[:,-1,-1], true[:,-1,-1])
 
                     total_loss.append(loss)
@@ -278,7 +280,7 @@ class exp_MTS_forecasting(Exp_Basic):
 
                     # weights = torch.abs(outputs) / torch.sum(torch.abs(outputs)).item()
 
-                    loss = criterion(outputs, batch_y, target_next=batch_y_next)
+                    loss = criterion(outputs, batch_y, target_next=batch_y_next, gamma=10)
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:

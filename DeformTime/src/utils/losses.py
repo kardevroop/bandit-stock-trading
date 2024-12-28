@@ -134,6 +134,59 @@ class stock_loss(nn.Module):
         
         return -1 * (t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs)) + t.sum(hold_cap))
 
+class soft_stock_loss(nn.Module):
+    def __init__(self, extra_node=False):
+        super(soft_stock_loss, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+
+        if "gamma" not in kwargs:
+            gamma = 5
+        else:
+            gamma = kwargs["gamma"]
+
+        signs = t.tanh(gamma * nn_output)
+
+        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
+
+        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
+
+        assert t.all(v_i_caps >= 0)
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        dim = v_i_caps.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                hold_cap = v_i_caps[:,-1]
+                v_i_caps = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                hold_cap = v_i_caps[:,:,-1]
+                v_i_caps = v_i_caps[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        else:
+            hold_cap = t.zeros_like(v_i_caps)
+        hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
+        
+        return -1 * (t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs)) + t.sum(hold_cap))
+
 
 class  stock_loss_max_norm(nn.Module):
     def __init__(self, extra_node=False):
