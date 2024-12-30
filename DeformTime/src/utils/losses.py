@@ -203,7 +203,7 @@ class  stock_loss_l2_norm(nn.Module):
         signs = nn_output / t.abs(nn_output)
 
         v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
-        print(f"V_i: {v_i_caps}")
+        # print(f"V_i: {v_i_caps}")
 
         assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
 
@@ -240,7 +240,7 @@ class  stock_loss_l2_norm(nn.Module):
         # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
 
         max_diff = t.max(t.abs(target_next - target), 2)[0]
-        print(f"max_diff: {max_diff}")
+        # print(f"max_diff: {max_diff}")
 
         a = t.flatten(target_next - target) * t.flatten(signs)
         a = t.reshape(a, target.shape)
@@ -248,7 +248,7 @@ class  stock_loss_l2_norm(nn.Module):
         for i in range(b):
             a[i,:,:] = t.div(a[i,:,:], max_diff[i])
         
-        print(f"a: {a}")
+        # print(f"a: {a}")
 
         # return 1.0 - t.sqrt(t.sum(
         #     t.dot(t.flatten(v_i_caps), t.pow(t.flatten(target_next - target) / max_diff, 2))
@@ -318,5 +318,5 @@ class  stock_loss_global_norm(nn.Module):
         # print(f"norm product: {- t.sum(t.flatten(t.abs(nn_output)) * t.flatten(target_next - target) * t.flatten(signs) / denom)}")
 
         return - t.sum(
-            t.flatten(t.abs(nn_output)) * t.flatten(target_next - target) * t.flatten(signs) / denom
+            t.flatten(nn_output) * t.flatten(target_next - target) / denom
             )

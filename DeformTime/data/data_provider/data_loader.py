@@ -519,6 +519,30 @@ class Dataset_SP500_all(Dataset):
         # for t in tran:
         #     cols.remove(t)
 
+        sell_prc = list(df_raw.filter(regex=f".*_SELL_PRC"))
+        for t in sell_prc:
+            cols.remove(t)
+
+        tran_cost = list(df_raw.filter(regex=f".*_TRAN_COST"))
+        for t in tran_cost:
+            cols.remove(t)
+
+        # ask = list(df_raw.filter(regex=f".*_ASK"))
+        # for t in ask:
+        #     cols.remove(t)
+
+        # shrout = list(df_raw.filter(regex=f".*_SHROUT"))
+        # for t in shrout:
+        #     cols.remove(t)
+
+        # market_cap = list(df_raw.filter(regex=f".*_MARKET_CAP"))
+        # for t in market_cap:
+        #     cols.remove(t)
+
+        # bid = list(df_raw.filter(regex=f".*_BID"))
+        # for t in bid:
+        #     cols.remove(t)
+
 
         cols.remove('date')
 
