@@ -502,6 +502,13 @@ class Dataset_SP500_all(Dataset):
 
         cols = list(df_raw.columns)
         self.target = list(df_raw.filter(regex=f".*{self.target_column}"))
+
+        tmp = []
+        for t in self.target:
+            if "SELL" not in t:
+                tmp.append(t)
+        self.target = [a for a in tmp]
+
         for t in self.target:
             cols.remove(t)
         self.target = list(filter(lambda x: 'expected' not in x and 'predicted' not in x, self.target))
@@ -519,6 +526,29 @@ class Dataset_SP500_all(Dataset):
         # for t in tran:
         #     cols.remove(t)
 
+        sell_prc = list(df_raw.filter(regex=f".*_SELL_PRC"))
+        for t in sell_prc:
+            cols.remove(t)
+
+        tran_cost = list(df_raw.filter(regex=f".*_TRAN_COST"))
+        for t in tran_cost:
+            cols.remove(t)
+
+        # ask = list(df_raw.filter(regex=f".*_ASK"))
+        # for t in ask:
+        #     cols.remove(t)
+
+        # shrout = list(df_raw.filter(regex=f".*_SHROUT"))
+        # for t in shrout:
+        #     cols.remove(t)
+
+        # market_cap = list(df_raw.filter(regex=f".*_MARKET_CAP"))
+        # for t in market_cap:
+        #     cols.remove(t)
+
+        # bid = list(df_raw.filter(regex=f".*_BID"))
+        # for t in bid:
+        #     cols.remove(t)
 
         cols.remove('date')
 
@@ -569,6 +599,8 @@ class Dataset_SP500_all(Dataset):
             df_data = df_raw[self.target]
 
         # print(df_data.shape)
+
+        self.df_data_denorm = df_data.copy().values
 
         self.features = df_raw[cols]
         self.target = df_raw[self.target]
@@ -622,7 +654,10 @@ class Dataset_SP500_all(Dataset):
         df_seq_x = self.df_data[s_begin:s_end]
         df_seq_y = self.df_data[r_begin:r_end]
 
-        seq_x_n, seq_y_n, df_seq_x_n, df_seq_y_n = np.zeros_like(seq_x), np.zeros_like(seq_y), np.zeros_like(df_seq_x), np.zeros_like(df_seq_y)
+        seq_x_n, seq_y_n, df_seq_x_n, df_seq_y_n = self.df_data_denorm[s_begin:s_end], \
+                                                    self.df_data_denorm[s_begin:s_end], \
+                                                    self.df_data_denorm[s_begin:s_end], \
+                                                    self.df_data_denorm[s_begin:s_end]
 
         # if index < len(self.data_x) - self.seq_len - self.pred_len:
 

@@ -29,17 +29,20 @@ def gradient_soft_stock_loss(k, nn_output, target, target_next, gamma=5):
 
     signs = torch.tanh(gamma * nn_output)
 
+    v_i_caps = torch.abs(nn_output) / torch.sum(torch.abs(nn_output))
+
     s = torch.sum(torch.abs(nn_output))
 
     grad = torch.zeros_like(nn_output)
 
-    grad[0,k] = (s - nn_output[0,k]*signs[0, k]) / s**2
+    grad[0,k] = v_i_caps[0, k] * (1 - torch.tanh(gamma * nn_output[0,k])*torch.tanh(gamma * nn_output[0,k])) * gamma \
+        + torch.tanh(gamma * nn_output[0,k]) * (s*signs[0, k] - nn_output[0,k]) / s**2
 
     for j in range(grad.shape[1]):
         if j == k:
             continue
         
-        grad[0,j] = - nn_output[0,j]*signs[0,k] / s**2
+        grad[0,j] = - torch.tanh(gamma * nn_output[0,j]) * nn_output[0,j]*signs[0,k] / s**2
 
     return - torch.sum(torch.flatten(target_next - target) * torch.flatten(grad))
 
@@ -135,8 +138,8 @@ def gradient_loss(k, nn_output, target, target_next, loss_func = "Stock"):
         grad = gradient_stock_loss_max_norm(k, nn_output, target, target_next)
     elif loss_func == 'Stock_global':
         grad = gradient_stock_loss_global_norm(k, nn_output, target, target_next)
-    # elif loss_func == 'Stock_soft':
-    #     grad = gradient_soft_stock_loss(k, nn_output, target, target_next)
+    elif loss_func == 'Stock_soft':
+        grad = gradient_soft_stock_loss(k, nn_output, target, target_next, gamma=100)
 
     return grad
 
