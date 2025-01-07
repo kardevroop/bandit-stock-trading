@@ -18,6 +18,9 @@ class Oracle(ABC):
     def reset(self, args):
         pass
 
+'''
+Simple Portfolio Oracle
+'''
 class PortFolioOracle(Oracle):
     def __init__(self, initial_money_pool = 100.0):
         self.initial_money_pool = initial_money_pool
@@ -35,6 +38,10 @@ class PortFolioOracle(Oracle):
     def reset(self, args):
         self.previous_total_money = self.money_pool
 
+'''
+Neural Portfolio Oracle
+Calculates reward based on decision and stock price valuation
+'''
 class NeuralPortFolioOracle(Oracle):
     def __init__(self, initial_money_pool = 100.0):
         self.initial_money_pool = initial_money_pool
@@ -42,17 +49,32 @@ class NeuralPortFolioOracle(Oracle):
         self.previous_total_money = self.initial_money_pool
 
     def calculate_reward(self, state: Portfolio, context: dict):
-        portfolio_values, stock_shares = state.calculate_value(context)
+        '''
+        Portfolio containing value of stock bought/shorted
+        context to calculate stock valuation on specific day
+        '''
+        portfolio_values, stock_shares, prev_context = state.calculate_value(context)
         reward = 0.0
         for decision in portfolio_values.keys():
-            price = '_PRC' if decision == 'short' else '_PRC'
+            price = '_PRC' # if decision == 'short' else '_PRC'
             for stock in portfolio_values[decision].keys():
                 # print(f"[INFO]   {decision}   {stock} price before: {portfolio_values[decision][stock]/stock_shares[stock]} price now: {context[stock + price]}")
                 if decision == 'long':
+                    '''
+                    if decision is long subtract valuation at t from t+1
+                    '''
+                    tmp = context[stock + price]*stock_shares[stock] - portfolio_values[decision][stock]
                     reward += context[stock + price]*stock_shares[stock] - portfolio_values[decision][stock]
+
                 elif decision == 'short':
+                    '''
+                    if decision is long subtract valuation at t+1 from t
+                    '''
+                    tmp = portfolio_values[decision][stock] - context[stock + price]*stock_shares[stock]
                     reward += portfolio_values[decision][stock] - context[stock + price]*stock_shares[stock]
                 # reward += abs(context[stock + price]*stock_shares[stock] - portfolio_values[decision][stock])
+                print(f"[INFO]          For stock {stock} go {decision} with {stock_shares[stock]} shares PRC_t: { prev_context[stock + price]} PRC_t+1: { context[stock + price]} reward: {tmp}")
+
 
         current_total_money = self.previous_total_money + reward
         # print(f"[INFO]      Investment : {current_total_money}")

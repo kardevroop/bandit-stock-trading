@@ -96,23 +96,34 @@ class stock_loss(nn.Module):
 
         signs = nn_output / t.abs(nn_output)
 
-        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.0001
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
 
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
         assert t.all(v_i_caps >= 0)
+
+
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
 
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
         dim = v_i_caps.dim()
+
+        # print(f"target: {target}")
+        # print(f"target next: {target_next}")
 
         if self.extra_node:
             if dim == 2:
                 hold_cap = v_i_caps[:,-1]
                 v_i_caps = v_i_caps[:,:-1]
-                signs = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
                 # target = target[:,:-1]
                 # target_next = target_next[:,:-1]
             else:
@@ -132,12 +143,343 @@ class stock_loss(nn.Module):
         # print(f"[INFO   ]       sign cap shape: {signs.shape}")
         # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
         
-        # if target_next is None: 
-        #     target_next = t.zeros_like(target)
+        return -1 * ((t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs)) + t.sum(hold_cap)))
 
-        # if dim == 2:
-        #     # return -1 * torch.sum(torch.dot(torch.flatten(weights[:,:-1]), torch.flatten(torch.mul(signs, target_next - target))))
-        #     return -1 * torch.sum(torch.dot(torch.flatten(weights), torch.flatten(torch.abs(target_next - target))))
+class soft_stock_loss(nn.Module):
+    def __init__(self, extra_node=False):
+        super(soft_stock_loss, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+
+        if "gamma" not in kwargs:
+            gamma = 5
+        else:
+            gamma = kwargs["gamma"]
+
+        signs = t.tanh(gamma * nn_output)
+
+        s = t.sum(t.abs(nn_output), (1, 2))
+
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+        assert t.all(v_i_caps >= 0)
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
+        dim = v_i_caps.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                hold_cap = v_i_caps[:,-1]
+                v_i_caps = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                hold_cap = v_i_caps[:,:,-1]
+                v_i_caps = v_i_caps[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        else:
+            hold_cap = t.zeros_like(v_i_caps)
+        hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
         
-        # return -1 * torch.sum(torch.dot(torch.flatten(weights[:,:,:-1]), torch.flatten(torch.mul(signs, target_next[:,:,:-1] - target[:,:,:-1]))))
-        return -1 * t.sum(t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs)) + t.flatten(hold_cap))
+        return -1 * ((t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs)) + t.sum(hold_cap)))
+
+
+class  stock_loss_max_norm(nn.Module):
+    def __init__(self, extra_node=False):
+        super(stock_loss_max_norm, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+
+        signs = nn_output / t.abs(nn_output)
+
+        s = t.sum(t.abs(nn_output), (1, 2))
+
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+
+        assert t.all(v_i_caps >= 0)
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
+        dim = v_i_caps.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                hold_cap = v_i_caps[:,-1]
+                v_i_caps = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                hold_cap = v_i_caps[:,:,-1]
+                v_i_caps = v_i_caps[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        else:
+            hold_cap = t.zeros_like(v_i_caps)
+        hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
+
+        max_diff = t.max(t.abs(target_next - target), 2)[0]
+
+        a = t.flatten(target_next - target) * t.flatten(signs)
+        a = t.reshape(a, target.shape)
+        # print(target.shape)
+        b, seq, f = target.shape
+        for i in range(b):
+            a[i,:,:] = t.div(a[i,:,:], max_diff[i])
+
+        # return 1.0 - (t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs) / max_diff) + t.sum(hold_cap))
+        return 1.0 - (t.dot(t.flatten(v_i_caps), t.flatten(a)) + t.sum(hold_cap))
+    
+class  stock_loss_soft_max_norm(nn.Module):
+    def __init__(self, extra_node=False):
+        super(stock_loss_soft_max_norm, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+
+        if "gamma" not in kwargs:
+            gamma = 5
+        else:
+            gamma = kwargs["gamma"]
+
+        signs = t.tanh(gamma * nn_output)
+
+        s = t.sum(t.abs(nn_output), (1, 2))
+        # print(s)
+
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+        # print(f"v_i_caps: {v_i_caps}")
+
+        assert t.all(v_i_caps >= 0)
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
+        dim = v_i_caps.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                hold_cap = v_i_caps[:,-1]
+                v_i_caps = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                hold_cap = v_i_caps[:,:,-1]
+                v_i_caps = v_i_caps[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        else:
+            hold_cap = t.zeros_like(v_i_caps)
+        hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
+
+        max_diff = t.max(t.abs(target_next - target), 2)[0]
+
+        a = t.flatten(target_next - target) * t.flatten(signs)
+        a = t.reshape(a, target.shape)
+        # print(target.shape)
+        b, seq, f = target.shape
+        for i in range(b):
+            a[i,:,:] = t.div(a[i,:,:], max_diff[i])
+
+        # return 1.0 - (t.dot(t.flatten(v_i_caps), t.flatten(target_next - target) * t.flatten(signs) / max_diff) + t.sum(hold_cap))
+        return 1.0 - (t.dot(t.flatten(v_i_caps), t.flatten(a)) + t.sum(hold_cap))
+
+class  stock_loss_l2_norm(nn.Module):
+    def __init__(self, extra_node=False):
+        super(stock_loss_l2_norm, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+ 
+        signs = nn_output / t.abs(nn_output)
+
+        s = t.sum(t.abs(nn_output), (1, 2))
+
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+
+        # print(f"V_i: {v_i_caps}")
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+        assert t.all(v_i_caps >= 0)
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
+        dim = v_i_caps.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                hold_cap = v_i_caps[:,-1]
+                v_i_caps = v_i_caps[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                hold_cap = v_i_caps[:,:,-1]
+                v_i_caps = v_i_caps[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        else:
+            hold_cap = t.zeros_like(v_i_caps)
+        hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
+
+        max_diff = t.max(t.abs(target_next - target), 2)[0]
+        # print(f"max_diff: {max_diff}")
+
+        a = t.flatten(target_next - target) * t.flatten(signs)
+        a = t.reshape(a, target.shape)
+        b, seq, f = target.shape
+        for i in range(b):
+            a[i,:,:] = t.div(a[i,:,:], max_diff[i])
+        
+        # print(f"a: {a}")
+
+        # return 1.0 - t.sqrt(t.sum(
+        #     t.dot(t.flatten(v_i_caps), t.pow(t.flatten(target_next - target) / max_diff, 2))
+        #     + t.flatten(hold_cap)*t.flatten(hold_cap)
+        # ))
+        return 1.0 - t.sqrt(
+            t.dot(t.flatten(v_i_caps), t.pow(t.flatten(a), 2))
+            + t.sum(t.flatten(hold_cap)*t.flatten(hold_cap))
+        )
+
+class  stock_loss_global_norm(nn.Module):
+    def __init__(self, extra_node=False):
+        super(stock_loss_global_norm, self).__init__()
+        self.extra_node = extra_node
+
+    def forward(self, nn_output, target, **kwargs):
+
+        signs = nn_output / t.abs(nn_output)
+
+        s = t.sum(t.abs(nn_output), (1, 2))
+
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+
+        assert t.all(v_i_caps >= 0)
+
+        if "target_next" not in kwargs:
+            target_next = t.zeros_like(target)
+        else:
+            target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
+
+        # max_diff = t.max(t.abs(target_next - target))
+
+        dim = nn_output.dim()
+
+        if self.extra_node:
+            if dim == 2:
+                nn_output = nn_output[:,:-1]
+                signs = signs[:,:-1]
+                # target = target[:,:-1]
+                # target_next = target_next[:,:-1]
+            else:
+                nn_output = nn_output[:,:,:-1]
+                signs = signs[:,:,:-1]
+                # target = target[:,:,:-1]
+                # target_next = target_next[:,:,:-1]
+        # else:
+        #     hold_cap = t.zeros_like(nn_output)
+        # hold_cap = hold_cap.unsqueeze(1)
+
+        # print(f"[INFO   ]       target shape: {target.shape}")
+        # print(f"[INFO   ]       target next shape: {target_next.shape}")
+        # print(f"[INFO   ]       weight shape: {weights.shape}")
+        # print(f"[INFO   ]       hold cap shape: {hold_cap.shape}")
+        # print(f"[INFO   ]       sign cap shape: {signs.shape}")
+        # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
+
+        # print(f"nn_output: {nn_output}")
+        # print(f"signs: {signs}")
+        # print(f"target_next: {target_next}")
+        # print(f"target: {target}")
+        # print(f"target_next - target: {target_next - target}")
+        
+        denom = t.dot(t.flatten(t.abs(nn_output)), t.flatten(target_next - target))
+
+        # print(f"Denom: {denom}")
+        # print(f"product: {t.flatten(t.abs(nn_output)) * t.flatten(target_next - target) * t.flatten(signs)}")
+        # print(f"norm product: {- t.sum(t.flatten(t.abs(nn_output)) * t.flatten(target_next - target) * t.flatten(signs) / denom)}")
+
+        return - t.sum(
+            t.flatten(t.abs(nn_output)) * t.flatten(target_next - target) * t.flatten(signs) / denom
+            )

@@ -2,7 +2,7 @@ from data.data_provider.data_factory import data_provider
 from src.exp.exp_basic import Exp_Basic
 from src.utils.tools import EarlyStopping, adjust_learning_rate
 from src.utils.metrics import MAE, MSE, SMAPE
-from src.utils.losses import stock_loss
+from src.utils.losses import stock_loss, stock_loss_max_norm, stock_loss_l2_norm, stock_loss_global_norm, soft_stock_loss, stock_loss_soft_max_norm
 from strategy.strategy import Strategy
 from oracle.oracle import Oracle
 import torch
@@ -40,8 +40,18 @@ class exp_MTS_forecasting(Exp_Basic):
     def _select_criterion(self, loss_type):
         if loss_type == 'MAE':
             criterion = nn.L1Loss()
-        if loss_type == 'Stock':
+        elif loss_type == 'Stock':
             criterion = stock_loss(self.args.enable_action)
+        elif loss_type == 'Stock_l2':
+            criterion = stock_loss_l2_norm(self.args.enable_action)
+        elif loss_type == 'Stock_max':
+            criterion = stock_loss_max_norm(self.args.enable_action)
+        elif loss_type == 'Stock_global':
+            criterion = stock_loss_global_norm(self.args.enable_action)
+        elif loss_type == 'Stock_soft':
+            criterion = soft_stock_loss(self.args.enable_action)
+        elif loss_type == 'Stock_max_soft':
+            criterion = stock_loss_soft_max_norm(self.args.enable_action)
         else:
             criterion = nn.MSELoss()
         return criterion
@@ -61,16 +71,19 @@ class exp_MTS_forecasting(Exp_Basic):
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_next, batch_y_next) in enumerate(vali_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_denorm, batch_y_denorm) in enumerate(vali_loader):
 
                 dim_len = vali_data.target.shape[1]  + (1 if self.args.enable_action else 0)
 
                 f_dim = -1 * dim_len if self.args.features == 'MS' else 0
                 f_dim += (1 if self.args.enable_action else 0)
                 batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
+                batch_y_next_denorm = batch_y_denorm[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
 
                 batch_x = torch.dstack((batch_x[:,:,:3*f_dim], batch_x[:,:,f_dim:]))
                 batch_y = torch.dstack((batch_y[:,:,:3*f_dim], batch_y[:,:,f_dim:]))
+                batch_y_denorm = torch.dstack((batch_y_denorm[:,:,:3*f_dim], batch_y_denorm[:,:,f_dim:]))
+                
                 batch_x_mark = torch.dstack((batch_x_mark[:,:,:3*f_dim], batch_x_mark[:,:,f_dim:]))
                 batch_y_mark = torch.dstack((batch_y_mark[:,:,:3*f_dim], batch_y_mark[:,:,f_dim:]))
 
@@ -78,6 +91,8 @@ class exp_MTS_forecasting(Exp_Basic):
                 
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
+                batch_y_denorm = batch_y_denorm.float()
+
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
 
@@ -104,20 +119,26 @@ class exp_MTS_forecasting(Exp_Basic):
                 f_dim += (1 if self.args.enable_action else 0)
 
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                batch_y_denorm = batch_y_denorm[:, -self.args.pred_len:, f_dim:].to(self.device)
                 # batch_y_next = batch_y_next[:, -self.args.pred_len:, f_dim:].to(self.device)
 
                 pred = outputs.detach().cpu()
+
                 true = batch_y.detach().cpu()
                 true_n = batch_y_next.detach().cpu()
-
                 true = true.float()
                 true_n = true_n.float()
+
+                true_dn = batch_y_denorm.detach().cpu()
+                true_n_dn = batch_y_next_denorm.detach().cpu()
+                true_dn = true_dn.float()
+                true_n_dn = true_n_dn.float()
 
                 # weights = torch.abs(outputs) / torch.sum(torch.abs(outputs)).item()
                 # weights = weights.detach().cpu()
 
                 if criterion is not None:
-                    loss = criterion(outputs.detach().cpu(), true, target_next=true_n)
+                    loss = criterion(outputs.detach().cpu(), true_dn, target_next=true_n_dn, gamma=100)
                     #mae = MAE(pred[:,-1,-1], true[:,-1,-1])
 
                     total_loss.append(loss)
@@ -177,7 +198,7 @@ class exp_MTS_forecasting(Exp_Basic):
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_next, batch_y_next) in enumerate(train_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_denorm, batch_y_denorm) in enumerate(train_loader):
                 # if i == len(train_data) - 1:
                 #     continue
                 iter_count += 1
@@ -187,9 +208,14 @@ class exp_MTS_forecasting(Exp_Basic):
                 f_dim = -1 * dim_len if self.args.features == 'MS' else 0
                 f_dim += (1 if self.args.enable_action else 0)
                 batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
+                batch_y_next_denorm = batch_y_denorm[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
+
+                # print(f"y denorm: {batch_y_denorm.shape}")
 
                 batch_x = torch.dstack((batch_x[:,:,:3*f_dim], batch_x[:,:,f_dim:]))
                 batch_y = torch.dstack((batch_y[:,:,:3*f_dim], batch_y[:,:,f_dim:]))
+                batch_y_denorm = torch.dstack((batch_y_denorm[:,:,:3*f_dim], batch_y_denorm[:,:,f_dim:]))
+
                 batch_x_mark = torch.dstack((batch_x_mark[:,:,:3*f_dim], batch_x_mark[:,:,f_dim:]))
                 batch_y_mark = torch.dstack((batch_y_mark[:,:,:3*f_dim], batch_y_mark[:,:,f_dim:]))
 
@@ -199,6 +225,8 @@ class exp_MTS_forecasting(Exp_Basic):
 
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
+                batch_y_denorm = batch_y_denorm.float().to(self.device)
+
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
 
@@ -225,6 +253,7 @@ class exp_MTS_forecasting(Exp_Basic):
                         f_dim += (1 if self.args.enable_action else 0)
 
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                        batch_y_denorm = batch_y_denorm[:, -self.args.pred_len:, f_dim:].to(self.device)
 
                         # batch_y_next = batch_y_next[:, -self.args.pred_len:, f_dim:].to(self.device)
                         # batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
@@ -236,7 +265,7 @@ class exp_MTS_forecasting(Exp_Basic):
 
                         # weights = torch.abs(outputs) / torch.sum(torch.abs(outputs)).item()
 
-                        loss = criterion(outputs, batch_y, target_next=batch_y_next)
+                        loss = criterion(outputs, batch_y_denorm, target_next=batch_y_next_denorm, gamma=100)
                         train_loss.append(loss.item())
 
                 else:
@@ -261,9 +290,14 @@ class exp_MTS_forecasting(Exp_Basic):
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     # batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
 
+                    batch_y_denorm = batch_y_denorm[:, -self.args.pred_len:, f_dim:].to(self.device)
+
 
                     batch_y = batch_y.float()
                     batch_y_next = batch_y_next.float()
+
+                    batch_y_denorm = batch_y_denorm.float()
+                    batch_y_next_denorm = batch_y_next_denorm.float()
 
                     # print(f"y shape: {batch_y.shape}")
                     # print(f"y_next shape: {batch_y_next.shape}")
@@ -272,7 +306,10 @@ class exp_MTS_forecasting(Exp_Basic):
 
                     # weights = torch.abs(outputs) / torch.sum(torch.abs(outputs)).item()
 
-                    loss = criterion(outputs, batch_y, target_next=batch_y_next)
+                    # batch_y = train_data.inverse_transform(batch_y.cpu())
+                    # batch_y_next = train_data.inverse_transform(batch_y_next.cpu())
+
+                    loss = criterion(outputs, batch_y_denorm, target_next=batch_y_next_denorm, gamma=100)
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -322,20 +359,26 @@ class exp_MTS_forecasting(Exp_Basic):
         trues = []
 
         net_profit, money_per_day = 0.0, 0.0
+        return_per_day = []
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_next, batch_y_next) in enumerate(test_loader):
+            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark, batch_x_denorm, batch_y_denorm) in enumerate(test_loader):
                 print(f"[INFO]   Test {i}")
 
                 # print(f"test target len: {len(test_data.target)}")
                 dim_len = test_data.target.shape[1] + (1 if self.args.enable_action else 0)
                 f_dim = -1 * dim_len if self.args.features == 'MS' else 0
                 f_dim += (1 if self.args.enable_action else 0)
+
+                # This section is for extracting returns where we have expected and predicted returns
                 batch_y_next = batch_y[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
+                batch_y_next_denorm = batch_y_denorm[:, -self.args.pred_len:, 3*f_dim:2*f_dim].to(self.device)
                 
                 batch_x1 = torch.dstack((batch_x[:,:,:3*f_dim], batch_x[:,:,f_dim:]))
                 batch_y1 = torch.dstack((batch_y[:,:,:3*f_dim], batch_y[:,:,f_dim:]))
+                batch_y1_denorm = torch.dstack((batch_y_denorm[:,:,:3*f_dim], batch_y_denorm[:,:,f_dim:]))
+
                 batch_x_mark1 = torch.dstack((batch_x_mark[:,:,:3*f_dim], batch_x_mark[:,:,f_dim:]))
                 batch_y_mark1 = torch.dstack((batch_y_mark[:,:,:3*f_dim], batch_y_mark[:,:,f_dim:]))
 
@@ -365,15 +408,17 @@ class exp_MTS_forecasting(Exp_Basic):
                     else:
                         outputs = self.model(batch_x1, batch_x_mark1, dec_inp, batch_y_mark1)
 
-                batch_x_next, _, _, _, _, _ = test_data[i+1]
-                batch_x_next = np.expand_dims(batch_x_next, axis=0)
+                # batch_x_next, _, _, _, _, _ = test_data[i+1]
+                # batch_x_next = np.expand_dims(batch_x_next, axis=0)
 
-                # print(f"batch_x_next: {batch_x_next.shape}")
-                batch_x_next = torch.from_numpy(batch_x_next)
+                # # print(f"batch_x_next: {batch_x_next.shape}")
+                # batch_x_next = torch.from_numpy(batch_x_next)
 
-                f_dim += (1 if self.args.enable_action else 0)
+                # f_dim += (1 if self.args.enable_action else 0)
 
-                batch_x_next1 = torch.dstack((batch_x_next[:,:,:3*f_dim], batch_x_next[:,:,f_dim:])).float().to(self.device)
+                # batch_x_next1 = torch.dstack((batch_x_next[:,:,:3*f_dim], batch_x_next[:,:,f_dim:])).float().to(self.device)
+
+
                 # print(f"batch_x1: {batch_x1.shape}")
                 # print(f"batch_x_next1: {batch_x_next1.shape}")
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
@@ -388,36 +433,43 @@ class exp_MTS_forecasting(Exp_Basic):
                  
                 if test_data.scale and self.args.inverse:
                     shape = batch_y.shape
-                    # outputs = test_data.inverse_transform(outputs.squeeze(0)).reshape(shape)
+                    outputs = test_data.inverse_transform(outputs.squeeze(0)).reshape(shape)
                     batch_y = test_data.inverse_transform(batch_y.squeeze(0)).reshape(shape)
 
                 batch_x = batch_x.detach().cpu().numpy()
-                batch_x_next = batch_x_next.detach().cpu().numpy()
+                # batch_x_next = batch_x_next.detach().cpu().numpy()
                 shape = batch_x.shape
 
                 batch_x = test_data.inverse_transform(batch_x.squeeze(0))
-                batch_x_next = test_data.inverse_transform(batch_x_next.squeeze(0))
+                # batch_x_next = test_data.inverse_transform(batch_x_next.squeeze(0))
 
                 # print(f"batch_x: {batch_x.shape}")
                 # print(f"batch_x_next: {batch_x_next.shape}")
 
-                context = pd.DataFrame(batch_x, columns=test_data.cols)
-                context_next = pd.DataFrame(batch_x_next, columns=test_data.cols)
+                # context = pd.DataFrame(batch_x, columns=test_data.cols)
+                # context_next = pd.DataFrame(batch_x_next, columns=test_data.cols)
 
                 # print(f"[INFO    ]       context: {context.tail()}")
                 # print(f"[INFO    ]       context_next: {context_next.tail()}")
 
-                if self.args.valuation:
+                '''
+                Skip the first record and calculate from the next
+                batch_x_prev is the context for the `current` day
+                batch_x is the context for the `next` day
+                '''
+                if self.args.valuation and i > 0:
+                    context = pd.DataFrame(batch_x_prev, columns=test_data.cols)
+                    context_next = pd.DataFrame(batch_x, columns=test_data.cols)
+
+                    # print(f"[INFO    ]       context: {context.tail()}")
+                    # print(f"[INFO    ]       context_next: {context_next.tail()}")
+
                     n = context.shape[0]
-                    # net_reward = 0.0
-                    # for index in range(context.shape[0]-1):
-                    # print(context.shape)
-                    # print(context.iloc[index].to_dict().keys())
                     self.strategy.make_move(context=context.iloc[-1,:].to_dict(), 
-                                            forecast=context_next.iloc[0,:].to_dict(), 
-                                            decision=torch.tensor(outputs).squeeze(0), 
+                                            forecast=context_next.iloc[-1,:].to_dict(), 
+                                            decision=torch.tensor(outputs_prev).squeeze(0), 
                                             stocks=test_data.stocks + [None])
-                    reward = self.oracle.calculate_reward(state=self.strategy.get_state(), context=context_next.iloc[0,:].to_dict())
+                    reward = self.oracle.calculate_reward(state=self.strategy.get_state(), context=context_next.iloc[-1,:].to_dict())
                     # net_reward += reward
                     net_profit += reward
                     money_per_day += self.strategy.money_pool
@@ -425,6 +477,11 @@ class exp_MTS_forecasting(Exp_Basic):
                     self.oracle.reset()
                     self.strategy.reset()
                     # net_profit += net_reward / n
+
+                    return_per_day.append(reward)
+
+                batch_x_prev = np.copy(batch_x)
+                outputs_prev = outputs
         
                 outputs = outputs[:, :, f_dim:]
                 batch_y = batch_y[:, :, f_dim:]
@@ -441,8 +498,9 @@ class exp_MTS_forecasting(Exp_Basic):
         # preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         # trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
         # print('test shape:', preds.shape, trues.shape)
+        return_per_day = np.array(return_per_day)
 
-        print(f"[INFO    ]       Profit: {net_profit} | {net_profit * 100.0 / (money_per_day)}%")
+        print(f"[INFO    ]       Profit: {net_profit} | {net_profit * 100.0 / (self.args.money_pool)}%")
 
         # result save
         folder_path = './results/' + setting + '/'
@@ -467,6 +525,8 @@ class exp_MTS_forecasting(Exp_Basic):
         # np.save(folder_path + 'pred.npy', preds)
         # np.savetxt(folder_path + 'pred.txt', preds[:,:,0])
         # np.save(folder_path + 'true.npy', trues)
+
+        np.save(os.path.join(folder_path, 'returns_per_day.npy'), return_per_day)
 
         return target_mae, target_mse
 

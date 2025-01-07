@@ -14,3 +14,8 @@ outs/
 logs/
 result.txt
 out*.txt
+tout*.txt
+*.png
+plots/
+image.png
+get_companies.py

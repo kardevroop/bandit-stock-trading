@@ -73,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+    parser.add_argument('--gamma', type=float, default=10, help='gamma value for smooth losses')
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
@@ -116,7 +117,7 @@ if __name__ == '__main__':
             print(f'Run {ii+1}')
             # setting record of experiments
             exp = Exp(args)  # set experiments
-            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_d{}_ld{}_lr{}_{}_{}'.format(
+            setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_d{}_ld{}_lr{}_loss{}_{}_{}'.format(
                 args.model_id,
                 args.model,
                 args.data,
@@ -130,6 +131,7 @@ if __name__ == '__main__':
                 args.dropout,
                 args.layer_dropout,
                 args.learning_rate,
+                args.loss,
                 args.des, ii)
 
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))

@@ -317,9 +317,14 @@ class Strategy(ABC):
 #         self.bought_price = {'long': {}, 'short': {}}
 
 
-
+'''
+Strategy for trading using continuous bandit approach
+'''
 class NeuralNetworkStrategy(Strategy):
     def __init__(self, args, **kwargs):
+        '''
+        Initialize with starting values and money pool
+        '''
         self.args = args
         self.metric = None, None
 
@@ -346,60 +351,80 @@ class NeuralNetworkStrategy(Strategy):
             - Parameter "stocks" will have the sequence of stocks like V_i(s)
         '''
 
-        decision_vector = kwargs["decision"]
+        # print(context)
+        # print(forecast)
+
+        nn_output = kwargs["decision"]
 
         #returns = context.filter(regex=".*_RET")
-        proportion = torch.abs(decision_vector) / torch.sum(torch.abs(decision_vector)).item()
+        proportion = torch.abs(nn_output) / torch.sum(torch.abs(nn_output)).item()
         # print(f"proportion: {proportion}")
+
+        assert torch.abs(torch.sum(proportion) - 1.0) < 0.0001
         
-        decision_vector = list(decision_vector.detach().numpy().flatten())
-        print(decision_vector)
+        nn_output = list(nn_output.detach().numpy().flatten())
+        print(f"nn_output: {nn_output}")
         proportion = list(proportion.detach().numpy().flatten())
-        print(proportion)
+        print(f"v_i_cap: : {proportion}")
 
         companies = kwargs["stocks"]
         companies.append(None)
-        # print(companies)
-        investment, pool = 0.0, self.money_pool
+        print(f"companies for v_caps: {companies}")
+
+        investment, pool = self.money_pool, self.money_pool
         decision, price_type = None, None
-        for st, v, p in zip(companies, decision_vector, proportion):
+
+        # if not all(abs(proportion[-1]) > abs(proportion[:-1])):
+
+        for st, v, p in zip(companies, nn_output, proportion):
             if st is None:
-                if all(p > proportion[:-1]):
+                '''
+                If hold is selected clear portfolio values
+                '''
+                if self.args.enable_action and all(abs(p) > abs(a) for a in proportion[:-1]):
                     self.reset()
+                    decision = 'hold'
                 continue
                     
-
             if v < 0: # short
                 price_type = '_PRC'
                 decision = 'short'
             elif v > 0: # long
                 price_type = '_PRC'
                 decision = 'long'
-            else:
-                price_type = '_PRC'
-                decision = 'hold'
-
-            
-            # print(f"[INFO]          For stock {st} go {decision} with {p} stocks | PRC_t: { context[st + price_type]} PRC_t+1: { forecast[st + price_type]}")
+            # else:
+            #     price_type = '_PRC'
+            #     decision = 'hold'
 
             stock_price = context[st + price_type]
             # print(f"[INFO]              {st} stock price is {stock_price}")
             shares = p * self.money_pool / stock_price
             # print(f"[INFO]              {st} number of shares to trade is {shares}")
-            investment += p * self.money_pool
+            investment -= min(investment, p * self.money_pool)
             # self.money_pool -= p * self.money_pool
             self.stocks[decision][st] = st
             self.purchased_shares[decision][st] = shares
             self.bought_price[decision][st] = stock_price
+
+            print(f"[INFO]          For stock {st} go {decision} using v_i_cap: {p*100} with {shares} shares | PRC_t: { context[st + price_type]} PRC_t+1: { forecast[st + price_type]}")
+
+
+        # assert abs(investment - self.money_pool) < 1
             
-        pool -= investment
+        # pool -= investment
         self.context = context
         print(f"[INFO]      Remaining Pool: {pool}")
 
     def report_reward(self, reward):
+        '''
+        Update pool with reward for next day trading
+        '''
         self.money_pool += reward
 
     def get_state(self):
+        '''
+        Return portfolio of stocks
+        '''
         print(f"[INFO]      Starting with {self.money_pool}")
         portfolio = Portfolio(self.money_pool, self.context)
         portfolio.add_stock(self.purchased_shares)
