@@ -96,15 +96,23 @@ class stock_loss(nn.Module):
 
         signs = nn_output / t.abs(nn_output)
 
-        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
 
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
         assert t.all(v_i_caps >= 0)
+
+
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         dim = v_i_caps.dim()
 
@@ -151,16 +159,22 @@ class soft_stock_loss(nn.Module):
 
         signs = t.tanh(gamma * nn_output)
 
-        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
 
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
         assert t.all(v_i_caps >= 0)
 
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         dim = v_i_caps.dim()
 
@@ -200,9 +214,13 @@ class  stock_loss_max_norm(nn.Module):
 
         signs = nn_output / t.abs(nn_output)
 
-        v_i_caps = t.abs(nn_output) / (t.sum(t.abs(nn_output)).item())
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        # assert t.abs(t.sum(v_i_caps) - 1.0) < 0.1
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
 
         assert t.all(v_i_caps >= 0)
 
@@ -210,6 +228,9 @@ class  stock_loss_max_norm(nn.Module):
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         dim = v_i_caps.dim()
 
@@ -263,16 +284,24 @@ class  stock_loss_soft_max_norm(nn.Module):
 
         signs = t.tanh(gamma * nn_output)
 
-        v_i_caps = t.abs(nn_output) / (t.sum(t.abs(nn_output)).item())
+        s = t.sum(t.abs(nn_output), (1, 2))
+        # print(s)
 
-        # assert t.abs(t.sum(v_i_caps) - 1.0) < 0.1
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
+        # print(f"v_i_caps: {v_i_caps}")
 
         assert t.all(v_i_caps >= 0)
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
 
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         dim = v_i_caps.dim()
 
@@ -321,16 +350,24 @@ class  stock_loss_l2_norm(nn.Module):
  
         signs = nn_output / t.abs(nn_output)
 
-        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
-        print(f"V_i: {v_i_caps}")
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
 
+        # print(f"V_i: {v_i_caps}")
+
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
         assert t.all(v_i_caps >= 0)
+
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         dim = v_i_caps.dim()
 
@@ -359,7 +396,7 @@ class  stock_loss_l2_norm(nn.Module):
         # print(f"[INFO   ]       sum shape: {t.dot(t.flatten(weights), t.flatten(t.abs(target_next - target))).shape}")
 
         max_diff = t.max(t.abs(target_next - target), 2)[0]
-        print(f"max_diff: {max_diff}")
+        # print(f"max_diff: {max_diff}")
 
         a = t.flatten(target_next - target) * t.flatten(signs)
         a = t.reshape(a, target.shape)
@@ -367,7 +404,7 @@ class  stock_loss_l2_norm(nn.Module):
         for i in range(b):
             a[i,:,:] = t.div(a[i,:,:], max_diff[i])
         
-        print(f"a: {a}")
+        # print(f"a: {a}")
 
         # return 1.0 - t.sqrt(t.sum(
         #     t.dot(t.flatten(v_i_caps), t.pow(t.flatten(target_next - target) / max_diff, 2))
@@ -387,16 +424,23 @@ class  stock_loss_global_norm(nn.Module):
 
         signs = nn_output / t.abs(nn_output)
 
-        v_i_caps = t.abs(nn_output) / t.sum(t.abs(nn_output)).item()
+        s = t.sum(t.abs(nn_output), (1, 2))
 
-        assert t.abs(t.sum(v_i_caps) - 1.0) < 0.01
+        v_i_caps = t.zeros_like(nn_output)
+        for b in range(v_i_caps.shape[0]):
+            v_i_caps[b,:,:] = t.abs(nn_output[b,:,:]) / s[b]
 
-        # assert t.all(v_i_caps >= 0)
+        assert t.abs(t.sum(v_i_caps) - v_i_caps.shape[0]) < 0.001
+
+        assert t.all(v_i_caps >= 0)
 
         if "target_next" not in kwargs:
             target_next = t.zeros_like(target)
         else:
             target_next = kwargs["target_next"]
+
+        target = t.abs(target)
+        target_next = t.abs(target_next)
 
         # max_diff = t.max(t.abs(target_next - target))
 

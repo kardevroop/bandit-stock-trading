@@ -114,7 +114,7 @@ class Model(nn.Module):
 
             # New Projection
             out = self.projection2(out)
-            # out += self.bias
+            out += self.bias
             out = torch.tanh(out)
         
         return out

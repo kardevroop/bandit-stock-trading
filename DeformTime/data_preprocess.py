@@ -1,9 +1,19 @@
 import pandas as pd
 import numpy as np
 import glob
+import random
+import copy
 import os
 
 compile = None
+
+companies = []
+for a in os.listdir('./data/dataset/SP500/stocks/'):
+    if 'all' not in a:
+        companies.append(a.split('.')[0])
+
+n=20
+companies = random.sample(companies, n)
 
 master_df = None
 for file in glob.glob(f'./data/dataset/SP500/stocks/*.csv'):
@@ -13,6 +23,9 @@ for file in glob.glob(f'./data/dataset/SP500/stocks/*.csv'):
         continue
 
     company = file.split("\\")[-1].split(".")[0]
+
+    if company not in companies:
+        continue
 
     #if company in ["AKAM", "BXP", "CAG"]:
     print(file)
@@ -47,7 +60,7 @@ for file in glob.glob(f'./data/dataset/SP500/stocks/*.csv'):
         df = df.rename(columns=cm)
         master_df = pd.merge(master_df, df, left_index=True, right_index=True)
 
-tcolumn = "PRC"
+tcolumn = "RET"
 pattern = f".*_{tcolumn}"
 
 targets = list(master_df.filter(regex=pattern).columns)
@@ -69,7 +82,7 @@ expected_targets = ['_'.join([a.split('_')[0], 'expected', tcolumn]) for a in ta
 for next_ret, curr_ret  in zip(expected_targets, targets):
     master_df[next_ret] = master_df[curr_ret].shift(-1)
 
-targets2 = ['NDSN', 'HOLX', 'ATO', 'KIM', 'NVR', 'DPZ', 'JBHT', 'DECK', 'FRT', 'KMX', 'EXR', 'LNT', 'CINF', 'ED', 'REG', 'CPB', 'LH', 'TRMB', 'DVA', 'PKG', 'CAG', 'NTRS', 'KMB', 'TRV', 'RHI', 'UHS', 'EMN', 'PODD', 'TECH', 'EXPD', 'WRB', 'EIX', 'STLD', 'BXP', 'CHRW', 'IVZ', 'HSIC', 'TFX', 'AKAM', 'JKHY', 'HBAN', 'ESS', 'ETR', 'FFIV', 'CPT', 'IEX', 'IRM', 'COO', 'MHK', 'FDS']
+targets2 = copy.deepcopy(companies)  #['NDSN', 'HOLX', 'ATO', 'KIM', 'NVR', 'DPZ', 'JBHT', 'DECK', 'FRT', 'KMX', 'EXR', 'LNT', 'CINF', 'ED', 'REG', 'CPB', 'LH', 'TRMB', 'DVA', 'PKG', 'CAG', 'NTRS', 'KMB', 'TRV', 'RHI', 'UHS', 'EMN', 'PODD', 'TECH', 'EXPD', 'WRB', 'EIX', 'STLD', 'BXP', 'CHRW', 'IVZ', 'HSIC', 'TFX', 'AKAM', 'JKHY', 'HBAN', 'ESS', 'ETR', 'FFIV', 'CPT', 'IEX', 'IRM', 'COO', 'MHK', 'FDS']
 
 predicted_targets = ['_'.join([a, 'predicted', tcolumn]) for a in targets2]
 for next_ret  in predicted_targets:
@@ -106,4 +119,4 @@ print(compile.shape)
 
     # master_df.to_csv(os.path.join(dest, 'all.csv'), index=False)
 compile.insert(loc=0, column='date', value=compile.index)
-compile.to_csv('./data/dataset/SP500/stocks/all_PRC.csv', index=False)
+compile.to_csv('./data/dataset/SP500/stocks/all_20.csv', index=False)

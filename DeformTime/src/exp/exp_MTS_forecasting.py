@@ -461,8 +461,8 @@ class exp_MTS_forecasting(Exp_Basic):
                     context = pd.DataFrame(batch_x_prev, columns=test_data.cols)
                     context_next = pd.DataFrame(batch_x, columns=test_data.cols)
 
-                    print(f"[INFO    ]       context: {context.tail()}")
-                    print(f"[INFO    ]       context_next: {context_next.tail()}")
+                    # print(f"[INFO    ]       context: {context.tail()}")
+                    # print(f"[INFO    ]       context_next: {context_next.tail()}")
 
                     n = context.shape[0]
                     self.strategy.make_move(context=context.iloc[-1,:].to_dict(), 
